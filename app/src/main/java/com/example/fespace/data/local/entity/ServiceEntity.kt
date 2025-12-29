@@ -1,0 +1,19 @@
+package com.example.fespace.data.local.entity
+
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+
+@Entity(tableName = "services")
+data class ServiceEntity(
+    @PrimaryKey(autoGenerate = true) val idServices: Int = 0,
+    val idAdmin: Int,
+    val nameServices: String,
+    val description: String,
+    val priceStart: Double,
+    val durationEstimate: String,
+    val features: String?,
+    val createAt: Long = System.currentTimeMillis(),
+    val updateAt: Long = System.currentTimeMillis()
+)
+
+
