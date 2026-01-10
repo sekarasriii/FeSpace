@@ -16,8 +16,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import OrderEntity
 import com.example.fespace.viewmodel.AdminViewModel
+import com.example.fespace.data.local.entity.OrderEntity
 
 @OptIn(ExperimentalMaterial3Api::class) // Perbaikan warning Experimental API
 @Composable

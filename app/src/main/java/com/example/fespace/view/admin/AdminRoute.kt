@@ -9,15 +9,15 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.example.fespace.viewmodel.AdminViewModel
-import OrderEntity
+import com.example.fespace.data.local.entity.OrderEntity
 
 @Composable
 fun AdminRoute(
     navController: NavHostController,
     adminViewModel: AdminViewModel
 ) {
-    // PERBAIKAN 2: Sebutkan tipe data secara eksplisit List<OrderEntity> agar 'find' dan 'idOrders' dikenali
-    val orders: List<OrderEntity> by adminViewModel.orders.collectAsState(initial = emptyList())
+    // Mengambil data orders dari ViewModel
+    val orders by adminViewModel.orders.collectAsState(initial = emptyList())
 
     NavHost(
         navController = navController,
@@ -31,38 +31,28 @@ fun AdminRoute(
             )
         }
 
-        // PERBAIKAN 3: HAPUS rute "admin_route" di sini!
-        // Anda tidak boleh memanggil AdminRoute di dalam AdminRoute (Recursive Loop).
-        // Rute "admin_route" seharusnya hanya ada di AppNavigation.kt.
-
-        // RUTE DETAIL ORDER
+        // RUTE DETAIL ORDER (Sesuai dengan error: membutuhkan 'order', 'adminViewModel', dan 'onBack')
         composable(
             route = "admin_order_detail/{orderId}",
             arguments = listOf(navArgument("orderId") { type = NavType.IntType })
         ) { backStackEntry ->
             val orderId = backStackEntry.arguments?.getInt("orderId") ?: 0
 
-            // Sekarang 'it' otomatis terdeteksi sebagai OrderEntity karena perbaikan 2
-            val order = orders.find { it.idOrders == orderId }
+            // Mencari objek order berdasarkan ID yang dikirim lewat navigasi
+            val selectedOrder = orders.find { it.idOrders == orderId }
 
-            if (order != null) {
+            if (selectedOrder != null) {
                 AdminOrderDetailScreen(
-                    order = order,
-                    adminViewModel = adminViewModel,
-                    onBack = { navController.popBackStack() }
+                    order = selectedOrder,           // Mengirim objek OrderEntity
+                    adminViewModel = adminViewModel, // Mengirim ViewModel
+                    onBack = { navController.popBackStack() } // Fungsi kembali
                 )
             }
         }
 
         // RUTE MANAJEMEN LAINNYA
-        composable("manage_portfolio") {
-            ManagePortfolioScreen()
-        }
-        composable("manage_service") {
-            ManageServiceScreen()
-        }
-        composable("manage_order") {
-            ManageOrderScreen()
-        }
+        composable("manage_portfolio") { ManagePortfolioScreen() }
+        composable("manage_service") { ManageServiceScreen() }
+        composable("manage_order") { ManageOrderScreen() }
     }
 }

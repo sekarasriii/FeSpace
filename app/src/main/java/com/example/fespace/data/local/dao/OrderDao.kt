@@ -7,7 +7,8 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
-import OrderEntity
+import com.example.fespace.data.local.entity.OrderEntity
+
 
 @Dao
 interface OrderDao {

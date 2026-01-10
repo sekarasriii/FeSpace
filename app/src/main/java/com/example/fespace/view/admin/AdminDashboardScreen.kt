@@ -25,9 +25,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.example.fespace.data.local.entity.ServiceEntity
 import com.example.fespace.data.local.entity.PortfolioEntity
-import OrderEntity
 import com.example.fespace.viewmodel.AdminViewModel
 import kotlinx.coroutines.launch
+import com.example.fespace.data.local.entity.OrderEntity
 
 // 1. Fungsi Validasi
 fun isTextInputValid(text: String): Boolean {
@@ -288,24 +288,22 @@ fun OrderManagementList(
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedStatus by remember { mutableStateOf("All") }
-    val statusOptions = listOf("All", "pending", "approved", "survey_scheduled", "in_design", "completed", "rejected")
+
+    // PERBAIKAN: Daftar status sesuai permintaan
+    val statusOptions = listOf("All", "Pending", "Approved", "In Design", "Completed")
 
     Column {
-        // Filter Row
-        Row(Modifier
-            .fillMaxWidth()
-            .padding(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                label = { Text("Cari Client/Lokasi") },
-                modifier = Modifier.weight(1f),
-                leadingIcon = { Icon(Icons.Default.Search, null) }
-            )
-        }
+        // Search Bar
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            label = { Text("Cari Alamat/Lokasi") },
+            modifier = Modifier.fillMaxWidth().padding(8.dp),
+            leadingIcon = { Icon(Icons.Default.Search, null) }
+        )
 
         // Chip Filter Status
-        LazyRow(contentPadding = PaddingValues(horizontal = 8.dp)) {
+        LazyRow(contentPadding = PaddingValues(horizontal = 8.dp), modifier = Modifier.padding(bottom = 8.dp)) {
             items(statusOptions) { status ->
                 FilterChip(
                     selected = selectedStatus == status,
@@ -316,32 +314,41 @@ fun OrderManagementList(
             }
         }
 
-        LazyColumn {
+        // List Pesanan
+        LazyColumn(modifier = Modifier.weight(1f)) {
             val filtered = orders.filter {
-                (selectedStatus == "All" || it.status == selectedStatus) &&
+                (selectedStatus == "All" || it.status.equals(selectedStatus, ignoreCase = true)) &&
                         (it.locationAddress.contains(searchQuery, true))
             }
-            items(filtered) { order ->
-                Card(
-                    modifier = Modifier
-                        .padding(8.dp)
-                        .fillMaxWidth()
-                        .clickable { onOrderDetailClick(order) }
-                ) {
-                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("Order #${order.idOrders}", fontWeight = FontWeight.Bold)
-                            Text("Status: ${order.status.uppercase()}", color = MaterialTheme.colorScheme.primary)
-                            Text("Lokasi: ${order.locationAddress}", style = MaterialTheme.typography.bodySmall)
+
+            if (filtered.isEmpty()) {
+                item {
+                    Box(Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Tidak ada pesanan dengan status $selectedStatus")
+                    }
+                }
+            } else {
+                items(filtered) { order ->
+                    Card(
+                        modifier = Modifier
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .fillMaxWidth()
+                            .clickable { onOrderDetailClick(order) } // Memicu navigasi
+                    ) {
+                        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Order #${order.idOrders}", fontWeight = FontWeight.Bold)
+                                Text("Status: ${order.status.uppercase()}", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
+                                Text(order.locationAddress, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                            }
+                            Icon(Icons.Default.ChevronRight, null)
                         }
-                        Icon(Icons.Default.ChevronRight, null)
                     }
                 }
             }
         }
     }
 }
-
 
 @Composable
 fun PortfolioManagementList(portfolios: List<PortfolioEntity>, onEdit: (PortfolioEntity) -> Unit, onDelete: (PortfolioEntity) -> Unit) {

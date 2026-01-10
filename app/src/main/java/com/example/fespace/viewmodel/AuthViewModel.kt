@@ -1,7 +1,5 @@
 package com.example.fespace.viewmodel
 
-import android.util.Log
-// HAPUS BARIS INI: import androidx.compose.ui.semantics.role
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -10,12 +8,11 @@ import com.example.fespace.repository.UserRepository
 import com.example.fespace.repository.OrderRepository
 import com.example.fespace.repository.PortfolioRepository
 import com.example.fespace.repository.ServiceRepository
-import com.example.fespace.viewmodel.AdminViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class AuthViewModel(private val repository: UserRepository) : ViewModel() {
+class AuthViewModel(private val userRepository: UserRepository) : ViewModel() {
 
     fun isValidEmail(email: String): Boolean {
         return android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()
@@ -26,47 +23,34 @@ class AuthViewModel(private val repository: UserRepository) : ViewModel() {
     }
 
     fun isRegisterValid(name: String, email: String, pass: String, whatsapp: String): Boolean {
-        return name.isNotEmpty() && email.isNotEmpty() && pass.isNotEmpty() &&
-                whatsapp.isNotEmpty() && isValidEmail(email)
+        return name.isNotBlank() && email.contains("@") && pass.length >= 6 && whatsapp.isNotBlank()
     }
 
-    fun register(
-        name: String,
-        email: String,
-        password: String,
-        role: String,
-        whatsappNumber: String,
-        onSuccess: () -> Unit
-    ) {
-        viewModelScope.launch {
+    fun register(name: String, email: String, pass: String, role: String, whatsapp: String, onResult: () -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
             try {
-                repository.insertUser(
-                    UserEntity(
-                        nameUser = name,
-                        email = email,
-                        password = password,
-                        role = role,
-                        whatsappNumber = whatsappNumber
-                    )
+                val newUser = UserEntity(
+                    nameUser = name,
+                    email = email,
+                    password = pass,
+                    role = role,
+                    whatsappNumber = whatsapp
                 )
-                onSuccess()
+                userRepository.insertUser(newUser) // Changed from userRepository to repository
+                withContext(Dispatchers.Main) { onResult() }
             } catch (e: Exception) {
-                Log.e("RegisterError", e.message ?: "Unknown error")
+                withContext(Dispatchers.Main) {
+                    println("DEBUG_REGISTER: Gagal daftar - ${e.message}")
+                    onResult() // Panggil agar isLoading = false
+                }
             }
         }
     }
 
-    fun login(email: String, pass: String, onResult: (String?) -> Unit) {
+    fun login(email: String, pass: String, onResult: (UserEntity?) -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
-            val user = repository.getUser(email, pass) // This returns a UserEntity?
-            withContext(Dispatchers.Main) {
-                if (user != null) {
-                    // Pass the 'role' property (a String) instead of the whole 'user' object
-                    onResult(user.role)
-                } else {
-                    onResult(null)
-                }
-            }
+            val user = userRepository.login(email, pass)
+            withContext(Dispatchers.Main) { onResult(user) }
         }
     }
     // Factory (Tetap di bawah)

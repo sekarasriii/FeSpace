@@ -9,6 +9,7 @@ import com.example.fespace.data.local.entity.*
 import com.example.fespace.repository.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import com.example.fespace.data.local.entity.OrderEntity
 
 class ClientViewModel(
     private val orderRepository: OrderRepository,
@@ -71,6 +72,10 @@ class ClientViewModel(
     // ===================== ORDER =====================
     fun getMyOrders(clientId: Int): Flow<List<OrderEntity>> =
         orderRepository.getOrdersByClient(clientId)
+    suspend fun getOrderById(orderId: Int): OrderEntity? {
+        // Memanggil repository untuk mengambil data dari database secara asynchronous
+        return orderRepository.getOrderById(orderId)
+    }
 
     fun placeOrder(clientId: Int, serviceId: Int, address: String, budget: Double) {
         viewModelScope.launch {

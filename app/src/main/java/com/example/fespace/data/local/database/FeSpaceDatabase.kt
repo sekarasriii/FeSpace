@@ -9,21 +9,28 @@ import com.example.fespace.data.local.dao.UserDao
 import com.example.fespace.data.local.entity.UserEntity
 import com.example.fespace.data.local.dao.PortfolioDao
 import com.example.fespace.data.local.dao.OrderDao
+import com.example.fespace.data.local.dao.OrderDocumentDao
 import com.example.fespace.data.local.entity.ServiceEntity
 import com.example.fespace.data.local.entity.PortfolioEntity
+import com.example.fespace.data.local.entity.OrderEntity
+import com.example.fespace.data.local.entity.OrderDocumentEntity
+
 
 @Database(entities =
     [
         UserEntity::class,
         PortfolioEntity::class,
         ServiceEntity::class,
-        OrderEntity::class],
-    version = 1, exportSchema = false)
+        OrderEntity::class,
+        OrderDocumentEntity::class
+    ],
+    version = 7, exportSchema = false)
 abstract class FeSpaceDatabase : RoomDatabase() {
     abstract fun userDao(): UserDao
     abstract fun portfolioDao(): PortfolioDao
     abstract fun serviceDao(): ServiceDao
     abstract fun orderDao(): OrderDao
+    abstract fun orderDocumentDao(): OrderDocumentDao
 
     companion object {
         @Volatile
@@ -36,7 +43,7 @@ abstract class FeSpaceDatabase : RoomDatabase() {
                     FeSpaceDatabase::class.java,
                     "fespace_database"
                 )
-                    .fallbackToDestructiveMigration() // <--- INI WAJIB ADA
+                    .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
                 instance

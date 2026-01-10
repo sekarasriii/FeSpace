@@ -1,35 +1,25 @@
 package com.example.fespace.repository
 
-import com.example.fespace.data.local.dao.OrderDao
 import kotlinx.coroutines.flow.Flow
-import OrderEntity
+import com.example.fespace.data.local.dao.OrderDao
+import com.example.fespace.data.local.entity.OrderEntity
 
 class OrderRepository(
     private val orderDao: OrderDao
 ) {
-
     fun getOrdersByClient(clientId: Int): Flow<List<OrderEntity>> {
         return orderDao.getOrdersByClient(clientId)
     }
 
-    //fun getOrdersByAdmin(adminId: Int): Flow<List<OrderEntity>> {
-        //return orderDao.getOrdersByAdmin(adminId)
-    //}
-
-    fun getAllOrders(): Flow<List<OrderEntity>> {
-        return orderDao.getAllOrders()
-    }
-
-    fun getOrdersByStatus(status: String): Flow<List<OrderEntity>> {
-        return orderDao.getOrdersByStatus(status)
-    }
-
-    suspend fun getOrderById(id: Int): OrderEntity? { // Lengkapi menjadi getOrderById
-        return orderDao.getOrderById(id)
-    }
-
     suspend fun insert(order: OrderEntity) {
+        // Ganti 'insertOrder' menjadi 'insert' agar sesuai dengan DAO
         orderDao.insert(order)
+    }
+
+    fun getAllOrders(): Flow<List<OrderEntity>> = orderDao.getAllOrders()
+
+    fun getFilteredOrders(status: String?, clientName: String?): Flow<List<OrderEntity>> {
+        return orderDao.getFilteredOrders(status, clientName)
     }
 
     suspend fun update(order: OrderEntity) {
@@ -39,4 +29,8 @@ class OrderRepository(
     suspend fun delete(order: OrderEntity) {
         orderDao.delete(order)
     }
-}
+
+    suspend fun getOrderById(id: Int): OrderEntity? {
+        return orderDao.getOrderById(id)
+    }
+} // Pastikan kurung kurawal penutup kelas hanya ada satu di paling bawah

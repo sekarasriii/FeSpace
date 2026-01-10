@@ -80,10 +80,12 @@ fun ClientRoute(
             val orderId = backStackEntry.arguments?.getInt("orderId") ?: 0
             OrderDetailScreen(
                 orderId = orderId,
-                clientViewModel = clientViewModel
+                clientViewModel = clientViewModel,
+                onBack = { // <--- Add this parameter
+                    navController.popBackStack()
+                }
             )
         }
-
 
         // 5. PROFILE SCREEN - PASTIKAN INI ADA
         // Contoh pemanggilan di ClientRoute

@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -17,6 +18,7 @@ import com.example.fespace.repository.OrderRepository
 import com.example.fespace.repository.PortfolioRepository
 import com.example.fespace.repository.ServiceRepository
 import com.example.fespace.repository.UserRepository
+import com.example.fespace.utils.SessionManager
 import com.example.fespace.view.admin.AdminDashboardScreen
 import com.example.fespace.view.auth.LoginScreen
 import com.example.fespace.view.auth.RegisterScreen
@@ -37,6 +39,12 @@ fun AppNavigation(startDestination: String) {
     val navController = rememberNavController()
     val context = LocalContext.current
 
+    // Initialize SessionManager
+    val sessionManager = remember { SessionManager(context) }
+    
+    // Coroutine scope for Composable
+    val scope = rememberCoroutineScope()
+    
     // 1. Initialize Database
     val database = FeSpaceDatabase.getInstance(context)
 
@@ -65,11 +73,26 @@ fun AppNavigation(startDestination: String) {
     val adminViewModel: AdminViewModel = viewModel(factory = viewModelFactory)
     val clientViewModel: ClientViewModel = viewModel(factory = viewModelFactory)
 
-    var currentUserId by remember { mutableIntStateOf(-1) }
+    // 6. Session-based user ID
+    var currentUserId by remember { mutableIntStateOf(sessionManager.getUserId()) }
+    
+    // 7. Determine start destination based on session
+    val actualStartDestination = remember {
+        if (sessionManager.isLoggedIn()) {
+            val role = sessionManager.getUserRole()
+            if (role.equals("admin", ignoreCase = true)) {
+                "admin_route"
+            } else {
+                "client_home"
+            }
+        } else {
+            startDestination
+        }
+    }
 
     NavHost(
         navController = navController,
-        startDestination = startDestination
+        startDestination = actualStartDestination
     ) {
         // WELCOME SCREEN
         composable(Screen.Welcome.route) {
@@ -80,28 +103,18 @@ fun AppNavigation(startDestination: String) {
         }
 
         // LOGIN SCREEN
-        // LOGIN SCREEN
         composable(Screen.Login.route) {
             LoginScreen(
-                // TAMBAHKAN DUA PARAMETER INI:
-                navController = navController,
-                viewModel = authViewModel,
-
+                navController = navController,viewModel = authViewModel,
                 onLoginSuccess = { role, userId ->
-                    // SIMPAN ID USER YANG BERHASIL LOGIN DISINI
-                    currentUserId = userId
-
+                    currentUserId = userId // Update ID User yang sedang login
                     if (role.equals("admin", ignoreCase = true)) {
-                        navController.navigate("admin_route") {
-                            popUpTo(Screen.Login.route) { inclusive = true }
-                        }
+                        navController.navigate("admin_route") { popUpTo(0) { inclusive = true } }
                     } else {
-                        navController.navigate("client_home") {
-                            popUpTo(Screen.Login.route) { inclusive = true }
-                        }
+                        navController.navigate("client_home") { popUpTo(0) { inclusive = true } }
                     }
                 },
-                onRegisterClick = { navController.navigate(Screen.Register.route) },
+                onRegisterClick = { navController.navigate("register") },
                 onBack = { navController.popBackStack() }
             )
         }
@@ -144,9 +157,11 @@ fun AppNavigation(startDestination: String) {
         // CLIENT PROFILE
         composable("client_profile") {
             ClientProfileScreen(
-                clientId = currentUserId, // SEKARANG MENGIRIM ID YANG DINAMIS
+                clientId = currentUserId,
                 clientViewModel = clientViewModel,
                 onLogout = {
+                    sessionManager.clearSession()
+                    currentUserId = -1
                     navController.navigate(Screen.Welcome.route) {
                         popUpTo(0) { inclusive = true }
                     }
@@ -197,9 +212,11 @@ fun AppNavigation(startDestination: String) {
             val orderId = backStackEntry.arguments?.getInt("orderId") ?: 0
             OrderDetailScreen(
                 orderId = orderId,
-                clientViewModel = clientViewModel
+                clientViewModel = clientViewModel,
+                onBack = { navController.popBackStack() } // Menambahkan parameter onBack
             )
         }
+
 
         // --- SECTION ADMIN ---
 

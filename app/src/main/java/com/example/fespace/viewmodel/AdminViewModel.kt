@@ -62,7 +62,7 @@ class AdminViewModel(
     var filterClientName = mutableStateOf<String?>(null)
 
     // Mengambil data orders berdasarkan filter
-    val filteredOrders: StateFlow<List<OrderEntity>> = combine(
+    val FilteredOrders: StateFlow<List<OrderEntity>> = combine(
         orderRepository.getAllOrders(),
         snapshotFlow { filterStatus.value },
         snapshotFlow { filterClientName.value }
