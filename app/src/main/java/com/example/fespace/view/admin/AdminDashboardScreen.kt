@@ -1,520 +1,648 @@
 package com.example.fespace.view.admin
 
-import android.widget.Toast
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
+import com.example.fespace.data.local.entity.OrderEntity
 import com.example.fespace.data.local.entity.ServiceEntity
 import com.example.fespace.data.local.entity.PortfolioEntity
 import com.example.fespace.viewmodel.AdminViewModel
-import kotlinx.coroutines.launch
-import com.example.fespace.data.local.entity.OrderEntity
-
-// 1. Fungsi Validasi
-fun isTextInputValid(text: String): Boolean {
-    if (text.isBlank()) return false
-    val trimmed = text.trim()
-    val firstChar = trimmed.first()
-    return firstChar.isLetter() && trimmed.any { it.isLetter() }
-}
+import com.example.fespace.view.navigation.Screen
+import com.example.fespace.ui.theme.*
+import com.example.fespace.utils.ValidationUtils
+import com.example.fespace.utils.ImageUploadHelper
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.*
+import coil.compose.AsyncImage
+import com.example.fespace.utils.RupiahFormatter
+import com.example.fespace.view.components.StatusPieChart
+import com.example.fespace.view.admin.ServiceGridItem
+import com.example.fespace.view.admin.PortfolioGridItem
+import com.example.fespace.view.admin.ServiceFormDialog
+import com.example.fespace.view.admin.PortfolioFormDialog
+import com.example.fespace.view.admin.AdminProfileDialog
+import com.example.fespace.view.admin.PremiumMetricCard
+import com.example.fespace.view.admin.ElegantActivityItem
+import com.example.fespace.view.admin.MenuOption
+import com.example.fespace.view.admin.BottomNavItem
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminDashboardScreen(
     adminViewModel: AdminViewModel,
-    navController: NavHostController
+    navController: NavHostController,
+    initialSelectedMenu: String = "Dashboard"
 ) {
-    // State data dari ViewModel
+    val orders by adminViewModel.orders.collectAsStateWithLifecycle()
     val services by adminViewModel.services.collectAsStateWithLifecycle()
     val portfolios by adminViewModel.portfolios.collectAsStateWithLifecycle()
-    val orders by adminViewModel.orders.collectAsStateWithLifecycle()
-
     val clientCount by adminViewModel.clientCount.collectAsStateWithLifecycle()
-
-    val drawerState = rememberDrawerState(DrawerValue.Closed)
-    val scope = rememberCoroutineScope()
-    val context = LocalContext.current
-
-    // State UI
-    var selectedMenu by remember { mutableStateOf("Dashboard") }
+    
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedTab by remember { mutableStateOf(0) }
+    var showLogoutDialog by remember { mutableStateOf(false) }
     var showServiceDialog by remember { mutableStateOf(false) }
-    var selectedService by remember { mutableStateOf<ServiceEntity?>(null) }
     var showPortfolioDialog by remember { mutableStateOf(false) }
+    var selectedService by remember { mutableStateOf<ServiceEntity?>(null) }
     var selectedPortfolio by remember { mutableStateOf<PortfolioEntity?>(null) }
+    
+    // Tab-specific filtered data
+    val filteredOrders = remember(orders, searchQuery, selectedTab) {
+        if (selectedTab == 0 && searchQuery.isNotBlank()) {
+            orders.filter { order ->
+                order.idOrders.toString().contains(searchQuery, ignoreCase = true) ||
+                order.status.contains(searchQuery, ignoreCase = true)
+            }
+        } else {
+            orders
+        }
+    }
+    
+    val filteredServices = remember(services, searchQuery, selectedTab) {
+        if (selectedTab == 1 && searchQuery.isNotBlank()) {
+            services.filter { service ->
+                service.nameServices.contains(searchQuery, ignoreCase = true) ||
+                service.category.contains(searchQuery, ignoreCase = true)
+            }
+        } else {
+            services
+        }
+    }
+    
+    val filteredPortfolios = remember(portfolios, searchQuery, selectedTab) {
+        if (selectedTab == 2 && searchQuery.isNotBlank()) {
+            portfolios.filter { portfolio ->
+                portfolio.title.contains(searchQuery, ignoreCase = true) ||
+                portfolio.category.contains(searchQuery, ignoreCase = true)
+            }
+        } else {
+            portfolios
+        }
+    }
 
-    // State Konfirmasi Hapus
-    var showDeleteConfirm by remember { mutableStateOf(false) }
-    var itemToDelete by remember { mutableStateOf<Any?>(null) }
-
-    // --- LOGIKA DIALOG KONFIRMASI HAPUS ---
-    if (showDeleteConfirm) {
+    // Logout Confirmation Dialog
+    if (showLogoutDialog) {
         AlertDialog(
-            onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Konfirmasi Hapus") },
-            text = { Text("Apakah Anda yakin ingin menghapus data ini? Tindakan ini tidak dapat dibatalkan.") },
+            onDismissRequest = { showLogoutDialog = false },
+            title = {
+                Text(
+                    "Konfirmasi Logout",
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+            },
+            text = {
+                Text(
+                    "Apakah Anda yakin ingin keluar dari dashboard admin?",
+                    color = TextSecondary
+                )
+            },
             confirmButton = {
                 Button(
                     onClick = {
-                        when (val item = itemToDelete) {
-                            is ServiceEntity -> adminViewModel.deleteService(item)
-                            is PortfolioEntity -> adminViewModel.deletePortfolio(item)
-                            is OrderEntity -> adminViewModel.deleteOrder(item)
+                        showLogoutDialog = false
+                        navController.navigate("welcome") {
+                            popUpTo(0) { inclusive = true }
                         }
-                        showDeleteConfirm = false
-                        itemToDelete = null
-                        Toast.makeText(context, "Data berhasil dihapus", Toast.LENGTH_SHORT).show()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) { Text("Hapus") }
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Terracotta,
+                        contentColor = Cream
+                    )
+                ) {
+                    Text("Ya, Logout")
+                }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) { Text("Batal") }
-            }
-        )
-    }
-
-    // --- LOGIKA DIALOG SERVICE ---
-    // --- LOGIKA DIALOG SERVICE ---
-    if (showServiceDialog) {
-        ServiceFormDialog(
-            service = selectedService,
-            onDismiss = { showServiceDialog = false; selectedService = null },
-            onConfirm = { service ->
-                if (selectedService == null) {
-                    // JIKA TAMBAH BARU: Pastikan parameter 'category' disertakan
-                    adminViewModel.addService(
-                        name = service.nameServices,
-                        category = service.category, // <--- INI KUNCINYA
-                        desc = service.description,
-                        price = service.priceStart,
-                        duration = service.durationEstimate,
-                        features = service.features ?: "",
-                        adminId = 1
-                    )
-                } else {
-                    // JIKA EDIT:
-                    adminViewModel.updateService(service)
+                OutlinedButton(
+                    onClick = { showLogoutDialog = false },
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Terracotta
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Terracotta.copy(alpha = 0.5f))
+                ) {
+                    Text("Batal")
                 }
-                showServiceDialog = false
-            }
+            },
+            containerColor = DarkSurface,
+            shape = RoundedCornerShape(20.dp)
         )
     }
 
-
-    // --- LOGIKA DIALOG PORTFOLIO ---
-    if (showPortfolioDialog) {
-        PortfolioFormDialog(
-            portfolio = selectedPortfolio,
-            onDismiss = { showPortfolioDialog = false; selectedPortfolio = null },
-            onConfirm = { title, desc, category, year ->
-                if (selectedPortfolio == null) {
-                    // PERBAIKAN DI SINI:
-                    // Urutan: title, desc, category, year, imagePath, adminId
-                    adminViewModel.addPortfolio(
-                        title = title,
-                        desc = desc,
-                        category = category,
-                        year = year,
-                        imagePath = null, // Tambahkan null untuk imagePath (karena String?)
-                        adminId = 1       // Berikan 1 untuk adminId (Int)
+    Scaffold(
+        containerColor = DarkCharcoal,
+        bottomBar = {
+            BottomAppBar(
+                containerColor = DarkSurface,
+                tonalElevation = 8.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(70.dp)
+                    .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    BottomNavItem(
+                        icon = Icons.Default.Home,
+                        label = "Dashboard",
+                        selected = selectedTab == 0,
+                        onClick = { 
+                            selectedTab = 0
+                            searchQuery = ""
+                        }
                     )
-                } else {
-                    val updated = selectedPortfolio!!.copy(
-                        title = title,
-                        description = desc,
-                        category = category,
-                        year = year,
-                        updateAt = System.currentTimeMillis() // Pastikan nama variabel sesuai Entity (snake_case)
+                    BottomNavItem(
+                        icon = Icons.Default.Build,
+                        label = "Layanan",
+                        selected = selectedTab == 1,
+                        onClick = { 
+                            selectedTab = 1
+                            searchQuery = ""
+                        }
                     )
-                    adminViewModel.updatePortfolio(updated)
+                    BottomNavItem(
+                        icon = Icons.Default.PhotoLibrary,
+                        label = "Portfolio",
+                        selected = selectedTab == 2,
+                        onClick = { 
+                            selectedTab = 2
+                            searchQuery = ""
+                        }
+                    )
+                    BottomNavItem(
+                        icon = Icons.Default.Menu,
+                        label = "Menu",
+                        selected = selectedTab == 3,
+                        onClick = { 
+                            selectedTab = 3
+                            searchQuery = ""
+                        }
+                    )
                 }
-                showPortfolioDialog = false
             }
-        )
-    }
-
-
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet {
-                Spacer(modifier = Modifier.height(16.dp))
-                Text("FeSpace Admin", modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                HorizontalDivider()
-                NavigationDrawerItem(label = { Text("Dashboard") }, selected = selectedMenu == "Dashboard", onClick = { selectedMenu = "Dashboard"; scope.launch { drawerState.close() } }, icon = { Icon(Icons.Default.Home, null) })
-                NavigationDrawerItem(label = { Text("Kelola Layanan") }, selected = selectedMenu == "Services", onClick = { selectedMenu = "Services"; scope.launch { drawerState.close() } }, icon = { Icon(Icons.Default.Settings, null) })
-                NavigationDrawerItem(label = { Text("Portfolio") }, selected = selectedMenu == "Portfolio", onClick = { selectedMenu = "Portfolio"; scope.launch { drawerState.close() } }, icon = { Icon(Icons.Default.Image, null) })
-                NavigationDrawerItem(label = { Text("Pesanan Masuk") }, selected = selectedMenu == "Orders", onClick = { selectedMenu = "Orders"; scope.launch { drawerState.close() } }, icon = { Icon(Icons.Default.ShoppingCart, null) })
-                NavigationDrawerItem(
-                    label = { Text("Logout") },
-                    selected = false,
-                    onClick = {
-                        scope.launch {
-                            drawerState.close()
-                            // PERBAIKAN: Pastikan tanda kurung kurawal { } mengapit popUpTo
-                            navController.navigate("welcome") {
-                                popUpTo(0) {
-                                    inclusive = true
+        }
+    ) { padding ->
+        Box(modifier = Modifier.fillMaxSize()) {
+            // Glassmorphic Header
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                DarkCharcoal,
+                                DarkCharcoal.copy(alpha = 0.95f)
+                            )
+                        )
+                    )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 24.dp, end = 24.dp, top = 48.dp, bottom = 24.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        Brush.linearGradient(
+                                            colors = listOf(Terracotta, TerracottaDark)
+                                        )
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.Person,
+                                    contentDescription = null,
+                                    tint = Cream,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+                            
+                            Spacer(Modifier.width(16.dp))
+                            
+                            Column {
+                                Text(
+                                    "Hi Rahayu!",
+                                    fontSize = 24.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    "Ready to create today?",
+                                    fontSize = 14.sp,
+                                    color = TextTertiary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Main Content
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentPadding = PaddingValues(top = 100.dp, bottom = 100.dp)
+            ) {
+                
+                // Content based on tab
+                when (selectedTab) {
+                    0 -> {
+                        // Dashboard
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 24.dp),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                PremiumMetricCard(
+                                    modifier = Modifier.weight(1f),
+                                    title = "Pesanan Baru",
+                                    value = orders.count { it.status.equals("pending", ignoreCase = true) }.toString(),
+                                    subtitle = "MENUNGGU",
+                                    gradient = Brush.linearGradient(
+                                        colors = listOf(Terracotta, TerracottaDark)
+                                    ),
+                                    icon = Icons.Default.ShoppingCart,
+                                    onClick = { }
+                                )
+                                
+                                PremiumMetricCard(
+                                    modifier = Modifier.weight(1f),
+                                    title = "Total Layanan",
+                                    value = com.example.fespace.utils.RupiahFormatter.formatToRupiah(
+                                        services.sumOf { it.priceStart.toDouble() }
+                                    ),
+                                    subtitle = "${services.size} Aktif",
+                                    gradient = Brush.linearGradient(
+                                        colors = listOf(Gold, Copper)
+                                    ),
+                                    icon = Icons.Default.Settings,
+                                    onClick = { selectedTab = 1 }
+                                )
+                            }
+                        }
+                        
+                        item { Spacer(Modifier.height(32.dp)) }
+                        
+                        item {
+                            Text(
+                                "Status Proyek",
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary,
+                                modifier = Modifier.padding(horizontal = 24.dp)
+                            )
+                        }
+                        
+                        item { Spacer(Modifier.height(16.dp)) }
+                        
+                        item {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 24.dp),
+                                colors = CardDefaults.cardColors(containerColor = DarkCharcoal.copy(alpha = 0.5f)),
+                                shape = RoundedCornerShape(24.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(24.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    StatusPieChart(orders = orders)
+                                    
+                                    Column(
+                                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.padding(start = 16.dp)
+                                    ) {
+                                        val statusLabelMap = mapOf(
+                                            "PENDING" to "Baru",
+                                            "APPROVED" to "Disetujui",
+                                            "INDESIGN" to "Desain",
+                                            "COMPLETED" to "Selesai"
+                                        )
+                                        val statusColorMap = mapOf(
+                                            "PENDING" to StatusPending,
+                                            "APPROVED" to StatusApproved,
+                                            "INDESIGN" to StatusInDesign,
+                                            "COMPLETED" to StatusApproved
+                                        )
+                                        
+                                        statusLabelMap.forEach { (status, label) ->
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(10.dp)
+                                                        .clip(CircleShape)
+                                                        .background(statusColorMap[status] ?: Color.Gray)
+                                                )
+                                                Spacer(Modifier.width(8.dp))
+                                                Text(
+                                                    text = label,
+                                                    color = TextPrimary,
+                                                    fontSize = 12.sp
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
-                    },
-                    icon = { Icon(Icons.Default.Logout, contentDescription = null, tint = Color.Red) },
-                    // Ganti unselectedLabelColor menjadi unselectedTextColor (Material 3)
-                    colors = NavigationDrawerItemDefaults.colors(unselectedTextColor = Color.Red)
-                )
-            }
-        }
-    ) {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text(selectedMenu) },
-                    navigationIcon = { IconButton(onClick = { scope.launch { drawerState.open() } }) { Icon(Icons.Default.Menu, null) } }
-                )
-            },
-            floatingActionButton = {
-                if (selectedMenu == "Services" || selectedMenu == "Portfolio") {
-                    FloatingActionButton(onClick = {
-                        if(selectedMenu == "Services") { selectedService = null; showServiceDialog = true }
-                        else { selectedPortfolio = null; showPortfolioDialog = true }
-                    }) { Icon(Icons.Default.Add, null) }
-                }
-            }
-        ) { padding ->
-            Column(modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp)) {
-                when (selectedMenu) {
-                    "Dashboard" -> AdminOverviewContent(services.size, portfolios.size, orders.size, clientCount = clientCount)
-                    "Services" -> ServiceManagementList(services, { selectedService = it; showServiceDialog = true }, { itemToDelete = it; showDeleteConfirm = true })
-                    "Portfolio" -> PortfolioManagementList(portfolios, { selectedPortfolio = it; showPortfolioDialog = true }, { itemToDelete = it; showDeleteConfirm = true })
 
-                    // PERBAIKAN DI SINI:
-                    "Orders" -> OrderManagementList(
-                        orders = orders,
-                        onOrderDetailClick = { order ->
-                            // Navigasi ke detail order admin
-                            navController.navigate("admin_order_detail/${order.idOrders}")
+                        item { Spacer(Modifier.height(32.dp)) }
+                        
+                        item {
+                            Text(
+                                "Aktivitas Terbaru",
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary,
+                                modifier = Modifier.padding(horizontal = 24.dp)
+                            )
                         }
-                    )
-                }
-                }
-            }
-        }
-    }
-
-// --- KOMPONEN UI PENDUKUNG ---
-
-@Composable
-fun AdminOverviewContent(serviceCount: Int, portfolioCount: Int, orderCount: Int, clientCount: Int) {
-    Column {
-        Text("Ringkasan Bisnis", style = MaterialTheme.typography.titleMedium)
-        Spacer(modifier = Modifier.height(16.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatCard("Orders", orderCount.toString(), Icons.Default.ShoppingCart, Modifier.weight(1f))
-            StatCard("Services", serviceCount.toString(), Icons.Default.Settings, Modifier.weight(1f))
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatCard("Portfolios", portfolioCount.toString(), Icons.Default.Image, Modifier.weight(1f))
-            StatCard(
-                title = "Users/Clients",
-                value = clientCount.toString(), // Sekarang angkanya dinamis
-                icon = Icons.Default.Person,
-                modifier = Modifier.weight(1f)
-            )
-        }
-    }
-}
-
-@Composable
-fun StatCard(title: String, value: String, icon: ImageVector, modifier: Modifier) {
-    Card(modifier = modifier, colors = CardDefaults.cardColors(MaterialTheme.colorScheme.surfaceVariant)) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Icon(icon, null)
-            Text(title, style = MaterialTheme.typography.bodySmall)
-            Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        }
-    }
-}
-
-@Composable
-fun ServiceManagementList(services: List<ServiceEntity>, onEdit: (ServiceEntity) -> Unit, onDelete: (ServiceEntity) -> Unit) {
-    if (services.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Belum ada layanan.") }
-    } else {
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(services) { service ->
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(service.nameServices, fontWeight = FontWeight.Bold)
-                            Text("Rp ${service.priceStart}", style = MaterialTheme.typography.bodySmall)
+                        
+                        item { Spacer(Modifier.height(16.dp)) }
+                        
+                        items(filteredOrders.take(10)) { order ->
+                            ElegantActivityItem(
+                                order = order,
+                                onClick = {
+                                    navController.navigate(Screen.AdminOrderDetail(order.idOrders).route)
+                                },
+                                modifier = Modifier.padding(horizontal = 24.dp, vertical = 6.dp)
+                            )
                         }
-                        IconButton(onClick = { onEdit(service) }) { Icon(Icons.Default.Edit, null, tint = Color.Blue) }
-                        IconButton(onClick = { onDelete(service) }) { Icon(Icons.Default.Delete, null, tint = Color.Red) }
                     }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun OrderManagementList(
-    orders: List<OrderEntity>,
-    onOrderDetailClick: (OrderEntity) -> Unit
-) {
-    var searchQuery by remember { mutableStateOf("") }
-    var selectedStatus by remember { mutableStateOf("All") }
-
-    // PERBAIKAN: Daftar status sesuai permintaan
-    val statusOptions = listOf("All", "Pending", "Approved", "In Design", "Completed")
-
-    Column {
-        // Search Bar
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = { searchQuery = it },
-            label = { Text("Cari Alamat/Lokasi") },
-            modifier = Modifier.fillMaxWidth().padding(8.dp),
-            leadingIcon = { Icon(Icons.Default.Search, null) }
-        )
-
-        // Chip Filter Status
-        LazyRow(contentPadding = PaddingValues(horizontal = 8.dp), modifier = Modifier.padding(bottom = 8.dp)) {
-            items(statusOptions) { status ->
-                FilterChip(
-                    selected = selectedStatus == status,
-                    onClick = { selectedStatus = status },
-                    label = { Text(status) },
-                    modifier = Modifier.padding(end = 4.dp)
-                )
-            }
-        }
-
-        // List Pesanan
-        LazyColumn(modifier = Modifier.weight(1f)) {
-            val filtered = orders.filter {
-                (selectedStatus == "All" || it.status.equals(selectedStatus, ignoreCase = true)) &&
-                        (it.locationAddress.contains(searchQuery, true))
-            }
-
-            if (filtered.isEmpty()) {
-                item {
-                    Box(Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Tidak ada pesanan dengan status $selectedStatus")
-                    }
-                }
-            } else {
-                items(filtered) { order ->
-                    Card(
-                        modifier = Modifier
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                            .fillMaxWidth()
-                            .clickable { onOrderDetailClick(order) } // Memicu navigasi
-                    ) {
-                        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text("Order #${order.idOrders}", fontWeight = FontWeight.Bold)
-                                Text("Status: ${order.status.uppercase()}", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
-                                Text(order.locationAddress, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                    
+                    1 -> {
+                        // Services Grid
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 24.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "Layanan (${filteredServices.size})",
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
+                                
+                                FloatingActionButton(
+                                    onClick = {
+                                        selectedService = null
+                                        showServiceDialog = true
+                                    },
+                                    containerColor = Terracotta,
+                                    modifier = Modifier.size(48.dp)
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = "Tambah", tint = Cream)
+                                }
                             }
-                            Icon(Icons.Default.ChevronRight, null)
+                        }
+                        
+                        item { Spacer(Modifier.height(16.dp)) }
+                        
+                        item {
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(2),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 2000.dp)
+                                    .padding(horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(16.dp),
+                                userScrollEnabled = false
+                            ) {
+                                items(filteredServices) { service ->
+                                    ServiceGridItem(
+                                        service = service,
+                                        onEdit = {
+                                            selectedService = service
+                                            showServiceDialog = true
+                                        },
+                                        onDelete = {
+                                            adminViewModel.deleteService(service)
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun PortfolioManagementList(portfolios: List<PortfolioEntity>, onEdit: (PortfolioEntity) -> Unit, onDelete: (PortfolioEntity) -> Unit) {
-    if (portfolios.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Belum ada portfolio.") }
-    } else {
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(portfolios) { item ->
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(item.title, fontWeight = FontWeight.Bold)
-                            Text("${item.category} • ${item.year}", style = MaterialTheme.typography.bodySmall)
+                    
+                    2 -> {
+                        // Portfolio Grid
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 24.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "Portfolio (${filteredPortfolios.size})",
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
+                                
+                                FloatingActionButton(
+                                    onClick = {
+                                        selectedPortfolio = null
+                                        showPortfolioDialog = true
+                                    },
+                                    containerColor = Terracotta,
+                                    modifier = Modifier.size(48.dp)
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = "Tambah", tint = Cream)
+                                }
+                            }
                         }
-                        IconButton(onClick = { onEdit(item) }) { Icon(Icons.Default.Edit, null, tint = Color.Blue) }
-                        IconButton(onClick = { onDelete(item) }) { Icon(Icons.Default.Delete, null, tint = Color.Red) }
-                    }
-                }
-            }
-        }
-    }
-}
-
-// --- DIALOGS ---
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun ServiceFormDialog(service: ServiceEntity?,
-                      onDismiss: () -> Unit,
-                      onConfirm: (ServiceEntity) -> Unit
-) {
-    var name by remember { mutableStateOf(service?.nameServices ?: "") }
-    var category by remember { mutableStateOf(service?.category ?: "residential") }
-    var desc by remember { mutableStateOf(service?.description ?: "") }
-    var price by remember { mutableStateOf(service?.priceStart?.toLong()?.toString() ?: "") }
-    var duration by remember { mutableStateOf(service?.durationEstimate ?: "") }
-    var features by remember { mutableStateOf(service?.features ?: "") }
-
-    var expanded by remember { mutableStateOf(false) }
-    val categories = listOf("residential", "commercial", "interior", "renovation")
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (service == null) "Tambah Layanan" else "Edit Layanan") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.verticalScroll(
-                rememberScrollState()
-            )) {
-                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Nama Layanan") }, modifier = Modifier.fillMaxWidth())
-
-                // Dropdown Kategori Jasa
-                ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
-                    OutlinedTextField(
-                        value = category, onValueChange = {}, readOnly = true,
-                        label = { Text("Kategori Jasa") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                        modifier = Modifier
-                            .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)
-                            .fillMaxWidth()
-                    )
-                    ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                        categories.forEach { cat ->
-                            DropdownMenuItem(text = { Text(cat) }, onClick = { category = cat; expanded = false })
+                        
+                        item { Spacer(Modifier.height(16.dp)) }
+                        
+                        item {
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(2),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 2000.dp)
+                                    .padding(horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(16.dp),
+                                userScrollEnabled = false
+                            ) {
+                                items(filteredPortfolios) { portfolio ->
+                                    PortfolioGridItem(
+                                        portfolio = portfolio,
+                                        onEdit = {
+                                            selectedPortfolio = portfolio
+                                            showPortfolioDialog = true
+                                        },
+                                        onDelete = {
+                                            adminViewModel.deletePortfolio(portfolio)
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
-                }
-
-                OutlinedTextField(value = price, onValueChange = { price = it }, label = { Text("Harga Mulai") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = duration, onValueChange = { duration = it }, label = { Text("Estimasi Durasi") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = features, onValueChange = { features = it }, label = { Text("Fitur Layanan (Gunakan Koma)") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = desc, onValueChange = { desc = it }, label = { Text("Deskripsi") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
-            }
-        },
-        confirmButton = {
-            Button(onClick = {
-                onConfirm(ServiceEntity(
-                    idServices = service?.idServices ?:0,
-                    idAdmin = 1,
-                    nameServices = name,
-                    // PERBAIKAN: Pastikan variabel 'category' dari state dropdown yang dikirim
-                    category = category.trim(),
-                    description = desc,
-                    priceStart = price.toDoubleOrNull() ?: 0.0,
-                    durationEstimate = duration,
-                    features = features
-                ))
-            }) { Text("Simpan") }
-        }
-    )
-}
-
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun PortfolioFormDialog(
-    portfolio: PortfolioEntity?,
-    onDismiss: () -> Unit,
-    onConfirm: (String, String, String, Int) -> Unit
-) {
-    var title by remember { mutableStateOf(portfolio?.title ?: "") }
-    var desc by remember { mutableStateOf(portfolio?.description ?: "") }
-    var year by remember { mutableStateOf(portfolio?.year?.toString() ?: "2024") }
-    var expanded by remember { mutableStateOf(false) }
-    val categories = listOf("residential", "commercial", "renovation", "interior")
-    var selectedCategory by remember { mutableStateOf(portfolio?.category ?: categories[0]) }
-
-    val isTitleValid = isTextInputValid(title)
-    val isYearValid = year.length == 4 && year.all { it.isDigit() } && (year.toIntOrNull() in 1900..2100)
-    val isFormValid = isTitleValid && isYearValid
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (portfolio == null) "Tambah Portfolio" else "Edit Portfolio") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text("Judul Proyek") },
-                    isError = !isTitleValid && title.isNotEmpty(),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = desc,
-                    onValueChange = { desc = it },
-                    label = { Text("Deskripsi Proyek") },
-                    minLines = 3 // Agar kolomnya lebih luas
-                )
-                OutlinedTextField(
-                    value = year,
-                    onValueChange = { if (it.length <= 4 && it.all { c -> c.isDigit() }) year = it },
-                    label = { Text("Tahun Proyek (YYYY)") },
-                    isError = !isYearValid && year.isNotEmpty(),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                ExposedDropdownMenuBox(
-                    expanded = expanded,
-                    onExpandedChange = { expanded = !expanded }
-                ) {
-                    OutlinedTextField(
-                        value = selectedCategory,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Kategori") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                        modifier = Modifier
-                            .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)
-                            .fillMaxWidth()
-                    )
-                    ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                        categories.forEach { item ->
-                            DropdownMenuItem(
-                                text = { Text(item) },
-                                onClick = { selectedCategory = item; expanded = false }
+                    
+                    3 -> {
+                        // Menu
+                        item {
+                            Text(
+                                "Menu",
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary,
+                                modifier = Modifier.padding(horizontal = 24.dp)
+                            )
+                        }
+                        
+                        item { Spacer(Modifier.height(16.dp)) }
+                        
+                        item {
+                            MenuOption(
+                                icon = Icons.Default.Person,
+                                title = "Klien",
+                                subtitle = "$clientCount Total Klien",
+                                onClick = { navController.navigate(Screen.AdminClients.route) },
+                                modifier = Modifier.padding(horizontal = 24.dp, vertical = 6.dp)
+                            )
+                        }
+                        
+                        item {
+                            var showProfileEditDialog by remember { mutableStateOf(false) }
+                            
+                            MenuOption(
+                                icon = Icons.Default.AccountCircle,
+                                title = "Profil Admin",
+                                subtitle = "rahayu@gmail.com",
+                                onClick = { showProfileEditDialog = true },
+                                modifier = Modifier.padding(horizontal = 24.dp, vertical = 6.dp)
+                            )
+                            
+                            if (showProfileEditDialog) {
+                                AdminProfileDialog(
+                                    adminViewModel = adminViewModel,
+                                    onDismiss = { showProfileEditDialog = false }
+                                )
+                            }
+                        }
+                        
+                        item {
+                            MenuOption(
+                                icon = Icons.Default.ExitToApp,
+                                title = "Logout",
+                                subtitle = "Keluar dari akun",
+                                onClick = { showLogoutDialog = true },
+                                modifier = Modifier.padding(horizontal = 24.dp, vertical = 6.dp)
                             )
                         }
                     }
                 }
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = { onConfirm(title, desc, selectedCategory, year.toIntOrNull() ?: 0) },
-                enabled = isFormValid
-            ) { Text("Simpan") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } }
-    )
+        }
+    }
+    
+    // Service Dialog
+    if (showServiceDialog) {
+        ServiceFormDialog(
+            service = selectedService,
+            onDismiss = { showServiceDialog = false },
+            onSave = { name, category, desc, price, duration, features, imagePath ->
+                if (selectedService == null) {
+                    adminViewModel.addService(name, category, desc, price, duration, features, imagePath, 1)
+                } else {
+                    adminViewModel.updateService(
+                        selectedService!!.copy(
+                            nameServices = name,
+                            category = category,
+                            description = desc,
+                            priceStart = price,
+                            durationEstimate = duration,
+                            features = features,
+                            imagePath = imagePath
+                        )
+                    )
+                }
+                showServiceDialog = false
+            }
+        )
+    }
+    
+    // Portfolio Dialog
+    if (showPortfolioDialog) {
+        PortfolioFormDialog(
+            portfolio = selectedPortfolio,
+            onDismiss = { showPortfolioDialog = false },
+            onSave = { title, desc, category, year, imagePath ->
+                if (selectedPortfolio == null) {
+                    adminViewModel.addPortfolio(title, desc, category, year, imagePath, 1)
+                } else {
+                    adminViewModel.updatePortfolio(
+                        selectedPortfolio!!.copy(
+                            title = title,
+                            description = desc,
+                            category = category,
+                            year = year,
+                            imagePath = imagePath
+                        )
+                    )
+                }
+                showPortfolioDialog = false
+            }
+        )
+    }
 }

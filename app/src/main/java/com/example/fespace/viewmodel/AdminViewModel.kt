@@ -11,6 +11,8 @@ import com.example.fespace.repository.OrderRepository
 import com.example.fespace.repository.PortfolioRepository
 import com.example.fespace.repository.ServiceRepository
 import com.example.fespace.repository.UserRepository
+import com.example.fespace.repository.OrderDocumentRepository
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -22,7 +24,8 @@ class AdminViewModel(
     private val portfolioRepository: PortfolioRepository,
     private val serviceRepository: ServiceRepository,
     private val orderRepository: OrderRepository,
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val orderDocumentRepository: OrderDocumentRepository
 ) : ViewModel() {
 
     // --- STATE DATA (Menggunakan StateFlow sebagai Single Source of Truth) ---
@@ -57,25 +60,52 @@ class AdminViewModel(
             initialValue = 0
         )
 
+    val clients: StateFlow<List<com.example.fespace.data.local.entity.UserEntity>> = userRepository.getAllClients()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Lazily,
+            initialValue = emptyList()
+        )
+
     // State untuk Filter
     var filterStatus = mutableStateOf<String?>(null)
     var filterClientName = mutableStateOf<String?>(null)
+    var filterStartDate = mutableStateOf<Long?>(null)
+    var filterEndDate = mutableStateOf<Long?>(null)
 
     // Mengambil data orders berdasarkan filter
     val FilteredOrders: StateFlow<List<OrderEntity>> = combine(
         orderRepository.getAllOrders(),
         snapshotFlow { filterStatus.value },
-        snapshotFlow { filterClientName.value }
-    ) { allOrders, status, name ->
+        snapshotFlow { filterClientName.value },
+        snapshotFlow { filterStartDate.value },
+        snapshotFlow { filterEndDate.value }
+    ) { allOrders, status, clientName, startDate, endDate ->
         allOrders.filter { order ->
-            (status == null || order.status == status) &&
-                    (name == null || order.locationAddress.contains(name, ignoreCase = true))
+            // Filter by status
+            val statusMatch = status == null || order.status == status
+            
+            // Filter by date range
+            val dateMatch = (startDate == null || order.createAt >= startDate) &&
+                           (endDate == null || order.createAt <= endDate)
+            
+            statusMatch && dateMatch
+        }.filter { order ->
+            // Filter by client name (synchronous check using runBlocking for simplicity)
+            if (clientName.isNullOrBlank()) {
+                true
+            } else {
+                kotlinx.coroutines.runBlocking {
+                    val client = userRepository.getUserById(order.idClient)
+                    client?.nameUser?.contains(clientName, ignoreCase = true) == true
+                }
+            }
         }
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     // --- CRUD SERVICES ---
 
-    fun addService(name: String, category: String, desc: String, price: Double, duration: String, features: String, adminId: Int) {
+    fun addService(name: String, category: String, desc: String, price: Double, duration: String, features: String, imagePath: String?, adminId: Int) {
         viewModelScope.launch {
             serviceRepository.addService(
                 ServiceEntity(nameServices = name,
@@ -84,6 +114,7 @@ class AdminViewModel(
                     priceStart = price,
                     durationEstimate = duration,
                     features = features,
+                    imagePath = imagePath,
                     idAdmin = adminId
                 )
             )
@@ -137,20 +168,107 @@ class AdminViewModel(
 
     // --- CRUD ORDERS ---
 
+    fun getOrderById(orderId: Int): Flow<OrderEntity?> {
+        return orderRepository.getOrderByIdFlow(orderId)
+    }
+
     fun updateOrderStatus(order: OrderEntity, newStatus: String) {
         viewModelScope.launch {
-            // Kita copy order lama dan ganti statusnya saja
             val updatedOrder = order.copy(
                 status = newStatus,
-                updateAt = System.currentTimeMillis() // Pastikan nama variabel sesuai Entity
+                updateAt = System.currentTimeMillis()
             )
             orderRepository.update(updatedOrder)
+        }
+    }
+
+    fun updateOrderDesign(order: OrderEntity, designPath: String, adminId: Int) {
+        viewModelScope.launch {
+            // Update order entity with design path
+            val updatedOrder = order.copy(
+                designPath = designPath,
+                updateAt = System.currentTimeMillis()
+            )
+            orderRepository.update(updatedOrder)
+            
+            // Also save to order_documents table as per SRS
+            val fileName = designPath.substringAfterLast("/")
+            orderDocumentRepository.uploadDocument(
+                orderId = order.idOrders,
+                uploadedBy = adminId,
+                filePath = designPath,
+                fileName = fileName,
+                docType = "design_draft",
+                description = "Hasil desain dari admin untuk order #${order.idOrders}"
+            )
         }
     }
 
     fun deleteOrder(order: OrderEntity) {
         viewModelScope.launch {
             orderRepository.delete(order)
+        }
+    }
+
+    // --- USER ---
+    fun getClientById(clientId: Int): Flow<com.example.fespace.data.local.entity.UserEntity?> {
+        return userRepository.getUserByIdFlow(clientId)
+    }
+
+    val adminProfile: Flow<com.example.fespace.data.local.entity.UserEntity?> = 
+        userRepository.getUserByEmailFlow("rahayu@gmail.com")
+
+    fun updateAdminProfile(user: com.example.fespace.data.local.entity.UserEntity) {
+        viewModelScope.launch {
+            userRepository.update(user)
+        }
+    }
+    
+    // --- DOCUMENT MANAGEMENT ---
+    
+    /**
+     * Get all documents for an order
+     */
+    fun getOrderDocuments(orderId: Int): Flow<List<com.example.fespace.data.local.entity.OrderDocumentEntity>> {
+        return orderDocumentRepository.getDocumentsByOrder(orderId)
+    }
+    
+    /**
+     * Get documents by type
+     */
+    fun getOrderDocumentsByType(orderId: Int, docType: String): Flow<List<com.example.fespace.data.local.entity.OrderDocumentEntity>> {
+        return orderDocumentRepository.getDocumentsByType(orderId, docType)
+    }
+    
+    /**
+     * Upload a new document
+     */
+    fun uploadDocument(
+        orderId: Int,
+        uploadedBy: Int,
+        filePath: String,
+        fileName: String,
+        docType: String,
+        description: String? = null
+    ) {
+        viewModelScope.launch {
+            orderDocumentRepository.uploadDocument(
+                orderId = orderId,
+                uploadedBy = uploadedBy,
+                filePath = filePath,
+                fileName = fileName,
+                docType = docType,
+                description = description
+            )
+        }
+    }
+    
+    /**
+     * Delete a document
+     */
+    fun deleteDocument(document: com.example.fespace.data.local.entity.OrderDocumentEntity) {
+        viewModelScope.launch {
+            orderDocumentRepository.delete(document)
         }
     }
 }
