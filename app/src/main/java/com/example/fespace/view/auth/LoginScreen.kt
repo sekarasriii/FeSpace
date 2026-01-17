@@ -20,6 +20,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.example.fespace.ui.components.PrimaryButton
+import com.example.fespace.ui.theme.*
 import com.example.fespace.viewmodel.AuthViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -35,11 +37,22 @@ fun LoginScreen(
     var password by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var passwordVisible by remember { mutableStateOf(false) }
+    var showErrorDialog by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val isButtonEnabled = viewModel.isLoginValid(email, password) && !isLoading
+    
+    // Error Dialog
+    if (showErrorDialog) {
+        com.example.fespace.ui.components.ErrorDialog(
+            title = "Login Gagal",
+            message = "Email atau password yang Anda masukkan salah. Silakan coba lagi.",
+            onDismiss = { showErrorDialog = false }
+        )
+    }
 
     Scaffold(
+        containerColor = DarkCharcoal,
         topBar = {
             TopAppBar(
                 title = { Text("Masuk", fontWeight = FontWeight.Bold) },
@@ -49,9 +62,9 @@ fun LoginScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
+                    containerColor = DarkCharcoal,
+                    titleContentColor = TextPrimary,
+                    navigationIconContentColor = TextPrimary
                 )
             )
         }
@@ -61,36 +74,39 @@ fun LoginScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .verticalScroll(rememberScrollState())
-                .padding(24.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(Spacing.Large),
+            verticalArrangement = Arrangement.spacedBy(Spacing.Medium)
         ) {
-            // Welcome Header
+            Spacer(modifier = Modifier.height(Spacing.Large))
+            
+            // Welcome Header with Elegant Theme
             Icon(
                 imageVector = Icons.Default.AccountCircle,
                 contentDescription = null,
-                modifier = Modifier.size(80.dp),
-                tint = MaterialTheme.colorScheme.primary
+                modifier = Modifier
+                    .size(80.dp)
+                    .align(Alignment.CenterHorizontally),
+                tint = Terracotta
             )
             
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(Spacing.Large))
             
             Text(
-                text = "Selamat Datang Kembali!",
+                text = "Selamat Datang Kembali",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
+                color = TextPrimary,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
             )
-            
-            Spacer(modifier = Modifier.height(8.dp))
             
             Text(
-                text = "Masuk untuk melanjutkan",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = "Masuk untuk melanjutkan proyek Anda",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextSecondary,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
             )
             
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(Spacing.Large))
 
             // Email Field
             OutlinedTextField(
@@ -103,10 +119,19 @@ fun LoginScreen(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !isLoading,
                 singleLine = true,
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(Radius.Medium),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Terracotta,
+                    focusedLabelColor = Terracotta,
+                    focusedLeadingIconColor = Terracotta,
+                    cursorColor = Terracotta,
+                    unfocusedBorderColor = AccentGold.copy(alpha = 0.5f),
+                    unfocusedLabelColor = TextSecondary,
+                    unfocusedLeadingIconColor = TextSecondary,
+                    unfocusedTextColor = TextPrimary,
+                    focusedTextColor = TextPrimary
+                )
             )
-            
-            Spacer(modifier = Modifier.height(16.dp))
 
             // Password Field
             OutlinedTextField(
@@ -120,7 +145,8 @@ fun LoginScreen(
                     IconButton(onClick = { passwordVisible = !passwordVisible }) {
                         Icon(
                             imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                            contentDescription = if (passwordVisible) "Sembunyikan password" else "Tampilkan password"
+                            contentDescription = if (passwordVisible) "Sembunyikan password" else "Tampilkan password",
+                            tint = AccentGold
                         )
                     }
                 },
@@ -128,45 +154,41 @@ fun LoginScreen(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !isLoading,
                 singleLine = true,
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(Radius.Medium),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Terracotta,
+                    focusedLabelColor = Terracotta,
+                    focusedLeadingIconColor = Terracotta,
+                    cursorColor = Terracotta,
+                    unfocusedBorderColor = AccentGold.copy(alpha = 0.5f),
+                    unfocusedLabelColor = TextSecondary,
+                    unfocusedLeadingIconColor = TextSecondary,
+                    unfocusedTextColor = TextPrimary,
+                    focusedTextColor = TextPrimary
+                )
             )
             
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(Spacing.Small))
 
-            // Login Button
-            Button(
+            // Login Button using custom component
+            PrimaryButton(
+                text = "Masuk",
                 onClick = {
                     isLoading = true
                     viewModel.login(email, password) { user ->
                         isLoading = false
                         if (user != null) {
-                            // user.role dan user.idUser diambil dari UserEntity
                             onLoginSuccess(user.role, user.idUser)
                         } else {
-                            Toast.makeText(context, "Email atau Password Salah", Toast.LENGTH_SHORT).show()
+                            showErrorDialog = true
                         }
                     }
                 },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
                 enabled = isButtonEnabled,
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                } else {
-                    Icon(Icons.Default.Login, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Masuk", fontSize = MaterialTheme.typography.titleMedium.fontSize)
-                }
-            }
+                loading = isLoading
+            )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(Spacing.Medium))
 
             // Register Link
             Row(
@@ -176,49 +198,14 @@ fun LoginScreen(
             ) {
                 Text(
                     "Belum punya akun?",
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary
                 )
                 TextButton(onClick = onRegisterClick) {
-                    Text("Daftar di sini", fontWeight = FontWeight.Bold)
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // Demo Credentials Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer
-                ),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Info,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.secondary
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            "Akun Demo",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        "Admin: admin@fespace.com / admin123",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    Text(
-                        "Client: budi@example.com / client123",
-                        style = MaterialTheme.typography.bodySmall
+                        "Daftar di sini",
+                        fontWeight = FontWeight.Bold,
+                        color = AccentGold
                     )
                 }
             }
