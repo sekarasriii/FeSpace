@@ -21,6 +21,9 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.fespace.viewmodel.AuthViewModel
+import com.example.fespace.ui.components.PrimaryButton
+import com.example.fespace.ui.theme.*
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,14 +36,48 @@ fun RegisterScreen(
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var whatsappNumber by remember { mutableStateOf("") }
-    var selectedRole by remember { mutableStateOf("client") }
+    val selectedRole = "client" // Hardcoded - only clients can register
     var passwordVisible by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
+    
+    // Validation error states
+    var nameError by remember { mutableStateOf("") }
+    var emailError by remember { mutableStateOf("") }
+    var whatsappError by remember { mutableStateOf("") }
+    var passwordError by remember { mutableStateOf("") }
+    var showSuccessDialog by remember { mutableStateOf(false) }
+    var showErrorDialog by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("") }
 
     val context = LocalContext.current
     val isButtonEnabled = viewModel.isRegisterValid(name, email, password, whatsappNumber) && !isLoading
+    
+    // Success Dialog
+    if (showSuccessDialog) {
+        com.example.fespace.ui.components.SuccessDialog(
+            title = "Registrasi Berhasil!",
+            message = "Akun Anda telah berhasil dibuat. Silakan login untuk melanjutkan.",
+            onDismiss = { 
+                showSuccessDialog = false
+                // Navigate to login screen
+                navController.navigate("login") {
+                    popUpTo("register") { inclusive = true }
+                }
+            }
+        )
+    }
+    
+    // Error Dialog
+    if (showErrorDialog) {
+        com.example.fespace.ui.components.ErrorDialog(
+            title = "Registrasi Gagal",
+            message = errorMessage,
+            onDismiss = { showErrorDialog = false }
+        )
+    }
 
     Scaffold(
+        containerColor = DarkCharcoal,
         topBar = {
             TopAppBar(
                 title = { Text("Daftar Akun Baru", fontWeight = FontWeight.Bold) },
@@ -50,9 +87,9 @@ fun RegisterScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
+                    containerColor = DarkCharcoal,
+                    titleContentColor = TextPrimary,
+                    navigationIconContentColor = TextPrimary
                 )
             )
         }
@@ -70,200 +107,242 @@ fun RegisterScreen(
                 text = "Bergabung dengan FeSpace",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
+                color = AccentGold
             )
             Text(
                 text = "Daftar sekarang dan mulai wujudkan hunian impian Anda",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = TextSecondary
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Form Fields
+            // Form Fields with Validation
             OutlinedTextField(
                 value = name,
-                onValueChange = { name = it },
+                onValueChange = { 
+                    name = it
+                    nameError = com.example.fespace.utils.InputValidator.validateName(it).second
+                },
                 label = { Text("Nama Lengkap") },
                 leadingIcon = {
-                    Icon(Icons.Default.Person, contentDescription = null)
+                    Icon(Icons.Default.Person, contentDescription = null, tint = AccentGold)
                 },
+                supportingText = {
+                    if (nameError.isNotEmpty()) {
+                        Text(nameError, color = MaterialTheme.colorScheme.error)
+                    } else {
+                        Text("Harus diawali huruf, hanya boleh huruf", color = TextSecondary.copy(alpha = 0.7f))
+                    }
+                },
+                isError = nameError.isNotEmpty() && name.isNotEmpty(),
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Terracotta,
+                    focusedLabelColor = Terracotta,
+                    focusedLeadingIconColor = Terracotta,
+                    cursorColor = Terracotta,
+                    unfocusedBorderColor = AccentGold.copy(alpha = 0.5f),
+                    unfocusedLabelColor = TextSecondary,
+                    unfocusedLeadingIconColor = TextSecondary,
+                    unfocusedTextColor = TextPrimary,
+                    focusedTextColor = TextPrimary
+                )
             )
 
             OutlinedTextField(
                 value = email,
-                onValueChange = { email = it },
+                onValueChange = { 
+                    email = it
+                    emailError = com.example.fespace.utils.InputValidator.validateEmail(it).second
+                },
                 label = { Text("Email") },
                 leadingIcon = {
-                    Icon(Icons.Default.Email, contentDescription = null)
+                    Icon(Icons.Default.Email, contentDescription = null, tint = AccentGold)
                 },
+                supportingText = {
+                    if (emailError.isNotEmpty()) {
+                        Text(emailError, color = MaterialTheme.colorScheme.error)
+                    } else {
+                        Text("Harus @gmail.com", color = TextSecondary.copy(alpha = 0.7f))
+                    }
+                },
+                isError = emailError.isNotEmpty() && email.isNotEmpty(),
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Terracotta,
+                    focusedLabelColor = Terracotta,
+                    focusedLeadingIconColor = Terracotta,
+                    cursorColor = Terracotta,
+                    unfocusedBorderColor = AccentGold.copy(alpha = 0.5f),
+                    unfocusedLabelColor = TextSecondary,
+                    unfocusedLeadingIconColor = TextSecondary,
+                    unfocusedTextColor = TextPrimary,
+                    focusedTextColor = TextPrimary
+                )
             )
 
             OutlinedTextField(
                 value = whatsappNumber,
-                onValueChange = { whatsappNumber = it },
+                onValueChange = { input ->
+                    // Only allow digits and limit to 12 characters
+                    val digitsOnly = input.filter { it.isDigit() }
+                    if (digitsOnly.length <= 12) {
+                        whatsappNumber = digitsOnly
+                        // Validate with formatted number (+62 prefix)
+                        val formattedNumber = if (digitsOnly.isNotEmpty()) {
+                            com.example.fespace.utils.InputValidator.formatWhatsAppNumber(digitsOnly)
+                        } else {
+                            ""
+                        }
+                        whatsappError = com.example.fespace.utils.InputValidator.validateWhatsApp(formattedNumber).second
+                    }
+                },
                 label = { Text("Nomor WhatsApp") },
                 leadingIcon = {
-                    Icon(Icons.Default.Phone, contentDescription = null)
+                    Icon(Icons.Default.Phone, contentDescription = null, tint = AccentGold)
                 },
-                placeholder = { Text("08123456789") },
+                prefix = { Text("+62 ", color = TextPrimary) },
+                placeholder = { Text("81366359496", color = TextSecondary.copy(alpha = 0.5f)) },
+                supportingText = {
+                    if (whatsappError.isNotEmpty()) {
+                        Text(whatsappError, color = MaterialTheme.colorScheme.error)
+                    } else {
+                        Text("10-12 digit, contoh: 81366359496", color = TextSecondary.copy(alpha = 0.7f))
+                    }
+                },
+                isError = whatsappError.isNotEmpty() && whatsappNumber.isNotEmpty(),
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(12.dp),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                ),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Terracotta,
+                    focusedLabelColor = Terracotta,
+                    focusedLeadingIconColor = Terracotta,
+                    cursorColor = Terracotta,
+                    unfocusedBorderColor = AccentGold.copy(alpha = 0.5f),
+                    unfocusedLabelColor = TextSecondary,
+                    unfocusedLeadingIconColor = TextSecondary,
+                    unfocusedTextColor = TextPrimary,
+                    focusedTextColor = TextPrimary
+                )
             )
 
             OutlinedTextField(
                 value = password,
-                onValueChange = { password = it },
+                onValueChange = { 
+                    password = it
+                    passwordError = com.example.fespace.utils.InputValidator.validatePassword(it).second
+                },
                 label = { Text("Password") },
                 leadingIcon = {
-                    Icon(Icons.Default.Lock, contentDescription = null)
+                    Icon(Icons.Default.Lock, contentDescription = null, tint = AccentGold)
                 },
                 trailingIcon = {
                     IconButton(onClick = { passwordVisible = !passwordVisible }) {
                         Icon(
                             imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                            contentDescription = if (passwordVisible) "Sembunyikan password" else "Tampilkan password"
+                            contentDescription = if (passwordVisible) "Sembunyikan password" else "Tampilkan password",
+                            tint = AccentGold
                         )
                     }
                 },
+                supportingText = {
+                    if (passwordError.isNotEmpty()) {
+                        Text(passwordError, color = MaterialTheme.colorScheme.error)
+                    } else {
+                        Text("Min 8 karakter: huruf besar, kecil, angka, simbol", color = TextSecondary.copy(alpha = 0.7f))
+                    }
+                },
+                isError = passwordError.isNotEmpty() && password.isNotEmpty(),
                 visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Terracotta,
+                    focusedLabelColor = Terracotta,
+                    focusedLeadingIconColor = Terracotta,
+                    cursorColor = Terracotta,
+                    unfocusedBorderColor = AccentGold.copy(alpha = 0.5f),
+                    unfocusedLabelColor = TextSecondary,
+                    unfocusedLeadingIconColor = TextSecondary,
+                    unfocusedTextColor = TextPrimary,
+                    focusedTextColor = TextPrimary
+                )
             )
 
-            // Role Selection Card
+            // Info Card - Only Client Registration Allowed
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    containerColor = DarkSurface
                 ),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(
-                        "Daftar Sebagai:",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = null,
+                        tint = AccentGold
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        // Client Option
-                        Card(
-                            modifier = Modifier.weight(1f),
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (selectedRole == "client")
-                                    MaterialTheme.colorScheme.primaryContainer
-                                else
-                                    MaterialTheme.colorScheme.surface
-                            ),
-                            onClick = { selectedRole = "client" }
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Person,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(32.dp),
-                                    tint = if (selectedRole == "client")
-                                        MaterialTheme.colorScheme.primary
-                                    else
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    "Client",
-                                    fontWeight = if (selectedRole == "client") FontWeight.Bold else FontWeight.Normal
-                                )
-                            }
-                        }
-
-                        // Admin Option
-                        Card(
-                            modifier = Modifier.weight(1f),
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (selectedRole == "admin")
-                                    MaterialTheme.colorScheme.primaryContainer
-                                else
-                                    MaterialTheme.colorScheme.surface
-                            ),
-                            onClick = { selectedRole = "admin" }
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.AdminPanelSettings,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(32.dp),
-                                    tint = if (selectedRole == "admin")
-                                        MaterialTheme.colorScheme.primary
-                                    else
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    "Admin",
-                                    fontWeight = if (selectedRole == "admin") FontWeight.Bold else FontWeight.Normal
-                                )
-                            }
-                        }
+                    Column {
+                        Text(
+                            "Pendaftaran Client",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                        Text(
+                            "Anda akan terdaftar sebagai client. Admin tidak dapat mendaftar melalui aplikasi.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary
+                        )
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Register Button
-            Button(
+            // Register Button with error handling
+            PrimaryButton(
+                text = "Daftar Sekarang",
                 onClick = {
                     isLoading = true
-                    viewModel.register(name, email, password, selectedRole, whatsappNumber) {
-                        isLoading = false
-                        Toast.makeText(context, "Berhasil Daftar sebagai $selectedRole", Toast.LENGTH_SHORT).show()
-                        navController.navigate("login") {
-                            popUpTo("register") { inclusive = true }
+                    // Format WhatsApp number with +62 prefix before saving
+                    val formattedWhatsApp = com.example.fespace.utils.InputValidator.formatWhatsAppNumber(whatsappNumber)
+                    
+                    viewModel.register(
+                        name = name,
+                        email = email,
+                        pass = password,
+                        role = selectedRole,
+                        whatsapp = formattedWhatsApp,
+                        onSuccess = {
+                            isLoading = false
+                            showSuccessDialog = true
+                        },
+                        onError = { error ->
+                            isLoading = false
+                            errorMessage = error
+                            showErrorDialog = true
                         }
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                enabled = isButtonEnabled,
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary
                     )
-                } else {
-                    Icon(Icons.Default.PersonAdd, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Daftar Sekarang", fontSize = MaterialTheme.typography.titleMedium.fontSize)
-                }
-            }
+                },
+                enabled = isButtonEnabled,
+                loading = isLoading
+            )
 
             // Login Link
             Row(
@@ -273,10 +352,11 @@ fun RegisterScreen(
             ) {
                 Text(
                     "Sudah punya akun?",
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary
                 )
                 TextButton(onClick = { navController.navigate("login") }) {
-                    Text("Masuk di sini", fontWeight = FontWeight.Bold)
+                    Text("Masuk di sini", fontWeight = FontWeight.Bold, color = AccentGold)
                 }
             }
         }
