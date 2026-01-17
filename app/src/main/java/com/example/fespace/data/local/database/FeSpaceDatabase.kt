@@ -24,8 +24,8 @@ import com.example.fespace.data.local.entity.OrderDocumentEntity
         OrderEntity::class,
         OrderDocumentEntity::class
     ],
-    version = 7, exportSchema = false)
-abstract class FeSpaceDatabase : RoomDatabase() {
+    version = 12, exportSchema = false)
+    abstract class FeSpaceDatabase : RoomDatabase() {
     abstract fun userDao(): UserDao
     abstract fun portfolioDao(): PortfolioDao
     abstract fun serviceDao(): ServiceDao
